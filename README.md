@@ -15,7 +15,7 @@ Users can paste a media URL (direct GIF/WEBP or webpage URL), preview the result
   - zoom
 - Persistent settings using `chrome.storage.sync`.
 - Automatic reinjection on load, LinkedIn SPA navigation, and rerenders.
-- Fallback animated star shimmer over `space.jpg` when no URL is saved.
+- Banner overlay applies when a media URL is saved.
 
 ## Project Structure
 
