@@ -1,0 +1,18 @@
+/* Canvas layer injected by content.js */
+#tv-canvas-banner {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none !important;
+}
+
+#tv-gif-banner {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  pointer-events: none !important;
+}
