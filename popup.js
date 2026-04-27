@@ -21792,6 +21792,10 @@
       return false;
     }
   }
+  function isRenderableMediaUrl(value) {
+    const lower = value.toLowerCase();
+    return isGifLikeUrl(value) || /\.(png|jpg|jpeg|webp)(\?|$)/.test(lower) || lower.includes("giphy.com/media/") || lower.includes("media.tenor.com/") || lower.includes("tenor.googleapis.com/");
+  }
   function absolutize(candidate, baseUrl) {
     try {
       return new URL(candidate, baseUrl).toString();
@@ -21842,14 +21846,14 @@
   }
   async function resolveToBannerMedia(inputUrl) {
     const trimmed = inputUrl.trim();
-    if (isGifLikeUrl(trimmed)) return trimmed;
+    if (isRenderableMediaUrl(trimmed)) return trimmed;
     let html = "";
     try {
       html = await fetchHtml(trimmed);
     } catch {
       html = await fetchHtmlViaProxy(trimmed);
     }
-    const candidates = extractMediaCandidatesFromHtml(html, trimmed).filter((u) => u.startsWith("http://") || u.startsWith("https://")).sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
+    const candidates = extractMediaCandidatesFromHtml(html, trimmed).filter((u) => u.startsWith("http://") || u.startsWith("https://")).filter((u) => isRenderableMediaUrl(u)).sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
     const best = candidates[0];
     if (!best) {
       throw new Error("Could not find media in this page. Try another URL.");
@@ -21902,8 +21906,11 @@
           setMessage("Preview updated.");
         } catch {
           if (cancelled) return;
-          setPreviewUrl(trimmed);
+          setPreviewUrl(isRenderableMediaUrl(trimmed) ? trimmed : "");
           setPreviewLoadError(false);
+          if (!isRenderableMediaUrl(trimmed)) {
+            setMessage("Use a direct media URL. Page links (like tenor.com pages) may be blocked in preview.");
+          }
         } finally {
           if (!cancelled) setIsResolvingPreview(false);
         }
@@ -21947,78 +21954,93 @@
     };
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.page, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.header, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.title, children: "LIVECARD" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.sub, children: "LinkedIn Animated Banner" })
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.eyebrow, children: "LinkedIn Animated Banner" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.title, children: "Livecard Studio" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.sub, children: "Paste a link, tweak preview, then save." })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.body, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { style: styles.label, children: "GIF URL" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          "input",
-          {
-            style: styles.input,
-            value: inputUrl,
-            onChange: (e) => {
-              const nextUrl = e.target.value;
-              setInputUrl(nextUrl);
-              onChange({ gifUrl: nextUrl });
-            },
-            placeholder: "https://example.com/banner.gif"
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.previewWrap, children: [
-          previewUrl ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "img",
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.panel, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { style: styles.label, children: "GIF URL" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "input",
             {
-              src: previewUrl,
-              alt: "GIF preview",
-              style: previewStyle,
-              onLoad: () => setPreviewLoadError(false),
-              onError: () => setPreviewLoadError(true)
+              style: styles.input,
+              value: inputUrl,
+              onChange: (e) => {
+                const nextUrl = e.target.value;
+                setInputUrl(nextUrl);
+                onChange({ gifUrl: nextUrl });
+              },
+              placeholder: "https://example.com/banner.gif"
             }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.previewEmpty, children: "Preview appears here" }),
-          previewLoadError ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.previewErrorBadge, children: "Preview failed for this URL (host may block hotlinking)" }) : null
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.helpText, children: "Use direct media links (for example `media.tenor.com`, `giphy.com/media`, or a `.gif` URL)." })
         ] }),
-        isResolvingPreview ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.message, children: "Resolving preview URL..." }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { style: styles.label, children: [
-          "Vertical Position (",
-          Math.round(settings.yPos),
-          "%)"
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.panel, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.labelRow, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { style: styles.label, children: "Preview" }),
+            isResolvingPreview ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: styles.hint, children: "Resolving..." }) : null
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.previewWrap, children: [
+            previewUrl ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+              "img",
+              {
+                src: previewUrl,
+                alt: "GIF preview",
+                style: previewStyle,
+                onLoad: () => setPreviewLoadError(false),
+                onError: () => setPreviewLoadError(true)
+              }
+            ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.previewEmpty, children: "Preview appears here" }),
+            previewLoadError ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.previewErrorBadge, children: "Preview failed for this URL (host may block hotlinking)" }) : null
+          ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          "input",
-          {
-            type: "range",
-            min: 0,
-            max: 100,
-            value: settings.yPos,
-            onChange: (e) => onChange({ yPos: Number(e.target.value) })
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { style: styles.label, children: [
-          "Zoom (",
-          settings.zoom.toFixed(2),
-          "x)"
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.panel, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { style: styles.label, children: [
+            "Vertical Position (",
+            Math.round(settings.yPos),
+            "%)"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "input",
+            {
+              style: styles.slider,
+              type: "range",
+              min: 0,
+              max: 100,
+              value: settings.yPos,
+              onChange: (e) => onChange({ yPos: Number(e.target.value) })
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { style: styles.label, children: [
+            "Zoom (",
+            settings.zoom.toFixed(2),
+            "x)"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "input",
+            {
+              style: styles.slider,
+              type: "range",
+              min: 1,
+              max: 2.5,
+              step: 0.01,
+              value: settings.zoom,
+              onChange: (e) => onChange({ zoom: Number(e.target.value) })
+            }
+          )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          "input",
-          {
-            type: "range",
-            min: 1,
-            max: 2.5,
-            step: 0.01,
-            value: settings.zoom,
-            onChange: (e) => onChange({ zoom: Number(e.target.value) })
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { style: styles.saveButton, onClick: save, children: "Save Livecard" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          "button",
-          {
-            style: styles.visitButton,
-            onClick: () => chrome.tabs.create({ url: "https://www.linkedin.com/in/tusharvarshney03/" }),
-            children: "Visit LinkedIn Profile"
-          }
-        ),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.buttonRow, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { style: styles.saveButton, onClick: save, children: "Save Livecard" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "button",
+            {
+              style: styles.visitButton,
+              onClick: () => chrome.tabs.create({ url: "https://www.linkedin.com/in/tusharvarshney03/" }),
+              children: "Visit LinkedIn Profile"
+            }
+          )
+        ] }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.message, children: message })
       ] })
     ] });
@@ -22027,42 +22049,70 @@
     page: {
       width: 340,
       minHeight: 520,
-      fontFamily: "Inter, system-ui, Arial, sans-serif",
-      background: "#070f2a",
-      color: "#edf3ff"
+      fontFamily: "'Inter', 'Avenir Next', system-ui, Arial, sans-serif",
+      background: "linear-gradient(180deg, #f6efe6 0%, #efe5d8 100%)",
+      color: "#2d2218"
     },
     header: {
-      padding: "14px 16px",
-      borderBottom: "1px solid rgba(120,160,240,0.25)",
-      background: "linear-gradient(135deg, rgba(70,50,190,0.45), rgba(25,95,215,0.35))"
+      padding: "14px 16px 12px",
+      borderBottom: "1px solid rgba(114,82,56,0.15)",
+      background: "linear-gradient(135deg, rgba(255,253,248,0.95), rgba(244,232,217,0.9))"
     },
-    title: { fontSize: 15, fontWeight: 800, letterSpacing: "0.08em" },
-    sub: { fontSize: 11, opacity: 0.8, marginTop: 2 },
-    body: { padding: 14, display: "grid", gap: 10 },
-    label: { fontSize: 11, color: "rgba(190,220,255,0.95)" },
+    eyebrow: {
+      fontSize: 10,
+      textTransform: "uppercase",
+      letterSpacing: "0.12em",
+      color: "rgba(95,66,43,0.7)",
+      fontWeight: 700,
+      marginBottom: 3
+    },
+    title: { fontSize: 19, fontWeight: 800, letterSpacing: "-0.01em", color: "#3b2b1f" },
+    sub: { fontSize: 12, opacity: 0.85, marginTop: 4, color: "#654d3a" },
+    body: { padding: 12, display: "grid", gap: 10 },
+    panel: {
+      background: "rgba(255, 252, 247, 0.92)",
+      border: "1px solid rgba(133,97,67,0.2)",
+      borderRadius: 12,
+      padding: 10,
+      display: "grid",
+      gap: 8,
+      boxShadow: "0 2px 10px rgba(68, 40, 18, 0.08)"
+    },
+    label: { fontSize: 11, color: "#6a4f3a", fontWeight: 600 },
+    labelRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+    hint: { fontSize: 10, color: "#99714f", fontWeight: 600 },
     input: {
       width: "100%",
-      padding: "8px 10px",
+      boxSizing: "border-box",
+      padding: "9px 10px",
       borderRadius: 8,
-      border: "1px solid rgba(120,160,240,0.45)",
-      background: "rgba(6,14,42,0.95)",
-      color: "#fff"
+      border: "1px solid rgba(143,106,72,0.35)",
+      background: "#fffaf3",
+      color: "#2e2219",
+      fontSize: 12,
+      lineHeight: 1.35,
+      outline: "none"
+    },
+    helpText: {
+      fontSize: 10,
+      color: "#8b6a4d",
+      lineHeight: 1.35
     },
     previewWrap: {
       position: "relative",
       width: "100%",
       aspectRatio: "1584 / 396",
-      borderRadius: 8,
+      borderRadius: 10,
       overflow: "hidden",
-      border: "1px solid rgba(120,160,240,0.35)",
-      background: "#02091f"
+      border: "1px solid rgba(143,106,72,0.3)",
+      background: "#f4eadf"
     },
     previewEmpty: {
       width: "100%",
       height: "100%",
       display: "grid",
       placeItems: "center",
-      color: "rgba(180,200,240,0.6)",
+      color: "rgba(110,80,56,0.75)",
       fontSize: 12
     },
     previewErrorBadge: {
@@ -22072,38 +22122,47 @@
       bottom: 8,
       padding: "6px 8px",
       borderRadius: 6,
-      border: "1px solid rgba(255,150,150,0.75)",
-      background: "rgba(80,14,20,0.9)",
-      color: "#ffd7d7",
+      border: "1px solid rgba(178,105,94,0.7)",
+      background: "rgba(116,56,46,0.9)",
+      color: "#ffe3dc",
       fontSize: 10,
       lineHeight: 1.3,
       textAlign: "center",
       pointerEvents: "none"
     },
+    slider: {
+      accentColor: "#8b5f3c"
+    },
+    buttonRow: {
+      display: "grid",
+      gap: 8
+    },
     saveButton: {
-      marginTop: 4,
-      border: "1px solid rgba(65,230,155,0.65)",
-      background: "rgba(21,127,86,0.8)",
-      color: "#e9ffef",
-      borderRadius: 8,
+      border: "1px solid rgba(118,80,48,0.65)",
+      background: "linear-gradient(180deg, #8f6241, #7b5337)",
+      color: "#fff8ef",
+      borderRadius: 10,
       padding: "10px 12px",
       fontWeight: 700,
       cursor: "pointer"
     },
     visitButton: {
-      border: "1px solid rgba(132,145,255,0.65)",
-      background: "rgba(56,71,188,0.75)",
-      color: "#edf1ff",
-      borderRadius: 8,
+      border: "1px solid rgba(123,95,68,0.5)",
+      background: "linear-gradient(180deg, #f5ebe0, #eedfce)",
+      color: "#513929",
+      borderRadius: 10,
       padding: "10px 12px",
       fontWeight: 700,
       cursor: "pointer"
     },
     message: {
-      marginTop: 2,
       fontSize: 11,
       lineHeight: 1.4,
-      color: "rgba(185,220,255,0.9)"
+      color: "#6b4f3a",
+      background: "rgba(255,248,238,0.9)",
+      border: "1px solid rgba(133,97,67,0.2)",
+      borderRadius: 10,
+      padding: "8px 10px"
     }
   };
 
