@@ -1,13 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_SETTINGS, LivecardSettings, sanitizeSettings, writeSettings, readSettings } from "../shared/storage";
 
-const DEFAULT_INPUT_URL = "https://nextshark.com/artist-creates-best-japanese-pixel-art-gifs-earth";
+const DEFAULT_INPUT_URL = "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNnRzeHhzd2x2MGl1aGM1dWRod2hxYnd6N3E1dTljd2VzdWtuNm5yOSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/pVGsAWjzvXcZW4ZBTE/giphy.gif";
 
 function isGifLikeUrl(value: string): boolean {
   try {
     const url = new URL(value);
     const path = url.pathname.toLowerCase();
-    return path.endsWith(".gif") || path.endsWith(".webp");
+    const full = `${path}${url.search}`.toLowerCase();
+    return (
+      path.endsWith(".gif") ||
+      path.endsWith(".webp") ||
+      path.endsWith(".png") ||
+      path.endsWith(".jpg") ||
+      path.endsWith(".jpeg") ||
+      full.includes(".gif") ||
+      full.includes(".webp") ||
+      full.includes("format=gif") ||
+      full.includes("format=webp")
+    );
   } catch {
     return false;
   }
@@ -49,7 +60,9 @@ function scoreCandidate(url: string): number {
   if (lower.endsWith(".gif")) return 100;
   if (lower.endsWith(".webp")) return 90;
   if (lower.endsWith(".mp4") || lower.endsWith(".webm")) return 80;
+  if (lower.includes("googleusercontent.com")) return 65;
   if (lower.includes("giphy") || lower.includes("tenor") || lower.includes("tumblr")) return 70;
+  if (lower.includes("sprite") || lower.includes("logo") || lower.includes("avatar")) return -10;
   if (lower.match(/\.(jpg|jpeg|png)(\?|$)/)) return 10;
   return 0;
 }
@@ -101,17 +114,57 @@ export function App() {
     ...DEFAULT_SETTINGS,
     gifUrl: DEFAULT_INPUT_URL,
   });
+  const [inputUrl, setInputUrl] = useState(DEFAULT_INPUT_URL);
+  const [previewUrl, setPreviewUrl] = useState(DEFAULT_INPUT_URL);
+  const [isResolvingPreview, setIsResolvingPreview] = useState(false);
+  const [previewLoadError, setPreviewLoadError] = useState(false);
   const [message, setMessage] = useState("Paste GIF URL, preview and adjust before saving.");
 
   useEffect(() => {
     readSettings().then((saved) => {
       if (!saved.gifUrl) {
         setSettings({ ...saved, gifUrl: DEFAULT_INPUT_URL });
+        setInputUrl(DEFAULT_INPUT_URL);
+        setPreviewUrl(DEFAULT_INPUT_URL);
         return;
       }
       setSettings(saved);
+      setInputUrl(saved.gifUrl);
+      setPreviewUrl(saved.gifUrl);
     });
   }, []);
+
+  useEffect(() => {
+    const trimmed = inputUrl.trim();
+    if (!trimmed) {
+      setPreviewUrl("");
+      setPreviewLoadError(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setIsResolvingPreview(true);
+      try {
+        const resolved = await resolveToBannerMedia(trimmed);
+        if (cancelled) return;
+        setPreviewUrl(resolved);
+        setPreviewLoadError(false);
+        setMessage("Preview updated.");
+      } catch {
+        if (cancelled) return;
+        setPreviewUrl(trimmed);
+        setPreviewLoadError(false);
+      } finally {
+        if (!cancelled) setIsResolvingPreview(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [inputUrl]);
 
   const previewStyle = useMemo(
     () => ({
@@ -132,9 +185,13 @@ export function App() {
 
   const save = async () => {
     try {
-      const resolvedUrl = settings.gifUrl ? await resolveToBannerMedia(settings.gifUrl) : "";
+      const source = inputUrl.trim();
+      const resolvedUrl = source ? await resolveToBannerMedia(source) : "";
       const next = sanitizeSettings({ ...settings, gifUrl: resolvedUrl });
       setSettings(next);
+      setInputUrl(resolvedUrl);
+      setPreviewUrl(resolvedUrl);
+      setPreviewLoadError(false);
       await writeSettings(next);
       await notifyActiveTab();
       setMessage("Saved. URL resolved and applied. Refresh LinkedIn once if needed.");
@@ -155,27 +212,34 @@ export function App() {
         <label style={styles.label}>GIF URL</label>
         <input
           style={styles.input}
-          value={settings.gifUrl}
-          onChange={(e) => onChange({ gifUrl: e.target.value })}
+          value={inputUrl}
+          onChange={(e) => {
+            const nextUrl = e.target.value;
+            setInputUrl(nextUrl);
+            onChange({ gifUrl: nextUrl });
+          }}
           placeholder="https://example.com/banner.gif"
         />
 
         <div style={styles.previewWrap}>
-          {settings.gifUrl ? (
-            <img src={settings.gifUrl} alt="GIF preview" style={previewStyle} />
+          {previewUrl ? (
+            <img
+              src={previewUrl}
+              alt="GIF preview"
+              style={previewStyle}
+              onLoad={() => setPreviewLoadError(false)}
+              onError={() => setPreviewLoadError(true)}
+            />
           ) : (
             <div style={styles.previewEmpty}>Preview appears here</div>
           )}
+          {previewLoadError ? (
+            <div style={styles.previewErrorBadge}>
+              Preview failed for this URL (host may block hotlinking)
+            </div>
+          ) : null}
         </div>
-
-        <label style={styles.label}>Horizontal Position ({Math.round(settings.xPos)}%)</label>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={settings.xPos}
-          onChange={(e) => onChange({ xPos: Number(e.target.value) })}
-        />
+        {isResolvingPreview ? <div style={styles.message}>Resolving preview URL...</div> : null}
 
         <label style={styles.label}>Vertical Position ({Math.round(settings.yPos)}%)</label>
         <input
@@ -238,6 +302,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#fff",
   },
   previewWrap: {
+    position: "relative",
     width: "100%",
     aspectRatio: "1584 / 396",
     borderRadius: 8,
@@ -252,6 +317,21 @@ const styles: Record<string, React.CSSProperties> = {
     placeItems: "center",
     color: "rgba(180,200,240,0.6)",
     fontSize: 12,
+  },
+  previewErrorBadge: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 8,
+    padding: "6px 8px",
+    borderRadius: 6,
+    border: "1px solid rgba(255,150,150,0.75)",
+    background: "rgba(80,14,20,0.9)",
+    color: "#ffd7d7",
+    fontSize: 10,
+    lineHeight: 1.3,
+    textAlign: "center",
+    pointerEvents: "none",
   },
   saveButton: {
     marginTop: 4,
